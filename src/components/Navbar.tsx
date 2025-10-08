@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const Navbar = () => {
+  const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -20,16 +22,16 @@ const Navbar = () => {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? "bg-background/95 backdrop-blur-md shadow-md" : "bg-transparent"
+        scrolled ? "glass neon-border" : "bg-transparent"
       }`}
     >
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary via-secondary to-tertiary rounded-lg flex items-center justify-center shadow-[var(--shadow-neon-blue)]">
               <span className="text-white font-bold text-lg">S</span>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent neon-text">
               SpendWise AI
             </span>
           </div>
@@ -52,7 +54,10 @@ const Navbar = () => {
             </button>
           </div>
 
-          <Button className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity">
+          <Button 
+            className="bg-gradient-to-r from-primary via-secondary to-tertiary hover:opacity-90 transition-all shadow-[var(--shadow-neon-blue)] hover:shadow-[var(--shadow-glow)]"
+            onClick={() => navigate("/login")}
+          >
             Get Started
           </Button>
         </div>

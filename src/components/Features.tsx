@@ -30,12 +30,13 @@ const features = [
 
 const Features = () => {
   return (
-    <section id="features" className="py-24 bg-background">
-      <div className="container mx-auto px-6">
+    <section id="features" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-accent/20 to-background pointer-events-none"></div>
+      <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-16 animate-fade-in-up">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             Powerful Features for{" "}
-            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent">
               Smart Money Management
             </span>
           </h2>
@@ -48,7 +49,7 @@ const Features = () => {
           {features.map((feature, index) => (
             <Card
               key={index}
-              className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border-2 hover:border-primary/50 animate-fade-in-up"
+              className="glass neon-border glow-on-hover animate-fade-in-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <CardContent className="p-6">

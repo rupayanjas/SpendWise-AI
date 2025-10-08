@@ -48,12 +48,13 @@ const HowItWorks = () => {
   }, []);
 
   return (
-    <section id="how-it-works" className="py-24 bg-gradient-to-b from-background to-accent">
-      <div className="container mx-auto px-6">
+    <section id="how-it-works" className="py-24 relative">
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-accent/30 to-background pointer-events-none"></div>
+      <div className="container mx-auto px-6 relative z-10">
         <div className="text-center mb-16 animate-fade-in-up">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             How{" "}
-            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent">
               SpendWise AI
             </span>{" "}
             Works
@@ -74,10 +75,10 @@ const HowItWorks = () => {
                 }`}
               >
                 <div className="relative mb-6">
-                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-lg">
+                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary via-secondary to-tertiary rounded-full flex items-center justify-center shadow-[var(--shadow-neon-blue)]">
                     <step.icon className="w-10 h-10 text-white" />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-white rounded-full border-4 border-primary flex items-center justify-center font-bold text-primary">
+                  <div className="absolute -top-2 -right-2 w-8 h-8 glass neon-border rounded-full flex items-center justify-center font-bold text-primary">
                     {index + 1}
                   </div>
                 </div>
@@ -87,8 +88,6 @@ const HowItWorks = () => {
             ))}
           </div>
 
-          {/* Connecting Line */}
-          <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary opacity-20 -z-10"></div>
         </div>
       </div>
     </section>
