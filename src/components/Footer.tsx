@@ -1,16 +1,18 @@
 import { Linkedin, Instagram, Mail } from "lucide-react";
+import AnimatedBackground from "./AnimatedBackground";
 
 const Footer = () => {
   return (
-    <footer id="contact" className="glass border-t border-border/50 py-12 relative">
+    <footer id="contact" className="border-t border-border/50 py-12 relative">
+      <AnimatedBackground />
       <div className="absolute inset-0 bg-gradient-to-t from-accent/20 to-transparent pointer-events-none"></div>
       <div className="container mx-auto px-6 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Logo & Tagline */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary via-secondary to-tertiary rounded-lg flex items-center justify-center shadow-[var(--shadow-neon-blue)]">
-                <span className="text-white font-bold text-lg">S</span>
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img src="/spendwise-logo.svg" alt="SpendWise AI" className="w-8 h-8" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">SpendWise AI</span>
             </div>
@@ -61,7 +63,7 @@ const Footer = () => {
 
         {/* Copyright */}
         <div className="border-t border-border/30 pt-8 text-center text-foreground/50">
-          <p>© 2025 ChainStorm. All rights reserved. Built with SpendWise AI.</p>
+          <p>© 2025 SpendWise AI. All rights reserved.</p>
         </div>
       </div>
     </footer>

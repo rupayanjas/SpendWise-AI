@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="dollarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06B6D4;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Modern circular background -->
+  <circle cx="50" cy="50" r="45" 
+          fill="url(#dollarGradient)" 
+          opacity="0.1" 
+          stroke="url(#dollarGradient)" 
+          stroke-width="2"/>
+  
+  <!-- Dollar sign with modern typography -->
+  <text x="50" y="65" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="48" 
+        font-weight="600" 
+        text-anchor="middle" 
+        fill="url(#dollarGradient)"
+        filter="url(#glow)">$</text>
+</svg>

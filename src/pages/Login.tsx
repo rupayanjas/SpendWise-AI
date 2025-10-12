@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import AnimatedBackground from "@/components/AnimatedBackground";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -54,11 +55,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-20 left-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "1s" }}></div>
-      </div>
+      <AnimatedBackground />
 
       <div className="w-full max-w-md relative z-10">
         <Button
@@ -73,8 +70,8 @@ const Login = () => {
         <Card className="glass neon-border animate-scale-in">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-primary via-secondary to-tertiary rounded-2xl flex items-center justify-center shadow-[var(--shadow-neon-blue)]">
-                <Sparkles className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 flex items-center justify-center">
+                <img src="/spendwise-logo.svg" alt="SpendWise AI" className="w-16 h-16" />
               </div>
             </div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent">

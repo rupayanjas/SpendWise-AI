@@ -22,21 +22,21 @@ const Navbar = () => {
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass neon-border" : "bg-transparent"
+        scrolled ? "glass neon-border backdrop-blur-md" : ""
       }`}
     >
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary via-secondary to-tertiary rounded-lg flex items-center justify-center shadow-[var(--shadow-neon-blue)]">
-              <span className="text-white font-bold text-lg">S</span>
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/spendwise-logo.svg" alt="SpendWise AI" className="w-10 h-10" />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent neon-text">
               SpendWise AI
             </span>
           </div>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             <button onClick={() => scrollToSection("home")} className="text-foreground hover:text-primary transition-colors">
               Home
             </button>

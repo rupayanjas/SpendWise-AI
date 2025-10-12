@@ -1,23 +1,34 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, TrendingUp, PieChart, Wallet, DollarSign, CreditCard } from "lucide-react";
+import { ArrowRight, TrendingUp, PieChart, Wallet, DollarSign, CreditCard } from "lucide-react";
 
 const Hero = () => {
   const navigate = useNavigate();
   
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Animated Neon Background */}
+      {/* Enhanced Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Large glowing orbs */}
         <div className="absolute top-20 left-20 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float"></div>
         <div className="absolute top-40 right-20 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "1s" }}></div>
         <div className="absolute bottom-20 left-40 w-96 h-96 bg-tertiary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "2s" }}></div>
         
-        <TrendingUp className="absolute top-20 left-10 text-primary/30 w-16 h-16 animate-float" style={{ animationDelay: "0s" }} />
-        <PieChart className="absolute top-40 right-20 text-secondary/30 w-20 h-20 animate-float" style={{ animationDelay: "1s" }} />
-        <Wallet className="absolute bottom-40 left-1/4 text-tertiary/30 w-12 h-12 animate-float" style={{ animationDelay: "2s" }} />
-        <DollarSign className="absolute top-1/2 right-10 text-primary/30 w-14 h-14 animate-float" style={{ animationDelay: "1.5s" }} />
-        <CreditCard className="absolute bottom-20 right-1/3 text-secondary/30 w-16 h-16 animate-float" style={{ animationDelay: "0.5s" }} />
+        {/* Additional smaller orbs for depth */}
+        <div className="absolute top-1/3 left-1/3 w-48 h-48 bg-primary/10 rounded-full blur-2xl parallax-slow"></div>
+        <div className="absolute bottom-1/3 right-1/3 w-64 h-64 bg-secondary/10 rounded-full blur-2xl parallax-fast"></div>
+        
+        {/* Floating icons with parallax */}
+        <TrendingUp className="absolute top-20 left-10 text-primary/30 w-16 h-16 animate-float parallax-slow" style={{ animationDelay: "0s" }} />
+        <PieChart className="absolute top-40 right-20 text-secondary/30 w-20 h-20 animate-float parallax-fast" style={{ animationDelay: "1s" }} />
+        <Wallet className="absolute bottom-40 left-1/4 text-tertiary/30 w-12 h-12 animate-float parallax-slow" style={{ animationDelay: "2s" }} />
+        <DollarSign className="absolute top-1/2 right-10 text-primary/30 w-14 h-14 animate-float parallax-fast" style={{ animationDelay: "1.5s" }} />
+        <CreditCard className="absolute bottom-20 right-1/3 text-secondary/30 w-16 h-16 animate-float parallax-slow" style={{ animationDelay: "0.5s" }} />
+        
+        {/* Additional decorative elements */}
+        <div className="absolute top-1/4 right-1/4 w-2 h-2 bg-primary rounded-full animate-pulse parallax-fast"></div>
+        <div className="absolute bottom-1/4 left-1/4 w-1 h-1 bg-secondary rounded-full animate-pulse parallax-slow" style={{ animationDelay: "0.5s" }}></div>
+        <div className="absolute top-3/4 right-1/2 w-3 h-3 bg-tertiary rounded-full animate-pulse parallax-fast" style={{ animationDelay: "1s" }}></div>
       </div>
 
       <div className="container mx-auto px-6 pt-32 pb-20 relative z-10">
@@ -37,20 +48,13 @@ const Hero = () => {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
+          <div className="flex justify-center animate-fade-in-up" style={{ animationDelay: "0.4s" }}>
             <Button 
               size="lg" 
               className="bg-gradient-to-r from-primary via-secondary to-tertiary hover:opacity-90 transition-all text-lg px-8 py-6 rounded-full shadow-[var(--shadow-neon-blue)] hover:shadow-[var(--shadow-glow)]"
               onClick={() => navigate("/login")}
             >
               Try Now <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="border-2 border-primary/50 text-foreground hover:bg-primary/10 hover:border-primary text-lg px-8 py-6 rounded-full glass"
-            >
-              <Play className="mr-2 w-5 h-5" /> Watch Demo
             </Button>
           </div>
 
