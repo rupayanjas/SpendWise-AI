@@ -1,73 +1,33 @@
-# Welcome to your Lovable project
+SpendWise AI 💸
 
-## Project info
+Team ChainStorm | SRM IST
 
-**URL**: https://lovable.dev/projects/17c3491c-8fe6-41e8-857a-c666edba8e6d
+AI-Powered Decentralized Personal Finance & Expense-Tracking DApp
 
-## How can I edit this code?
+🌟 Project Overview
 
-There are several ways of editing your application.
+SpendWise AI is a Web3-enabled, AI-powered personal finance application that helps users:
 
-**Use Lovable**
+Track expenses and manage budgets
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/17c3491c-8fe6-41e8-857a-c666edba8e6d) and start prompting.
+Set and monitor financial goals
 
-Changes made via Lovable will be committed automatically to this repo.
+Reduce money stress using intelligent automation
 
-**Use your preferred IDE**
+Unlike traditional finance apps, SpendWise AI leverages blockchain and decentralized storage, giving users full control, privacy, and transparency over their financial data.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Core Features:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Smart Categorization: AI automatically classifies expenses
 
-Follow these steps:
+AI Analytics & Insights: Real-time dashboards, predictive alerts, and spending trends
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Wallet-Based Authentication: Secure login via MetaMask / WalletConnect
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Smart Contracts for Budgets & Goals: Immutable and transparent transaction tracking
 
-# Step 3: Install the necessary dependencies.
-npm i
+Multi-Input Support: SMS parsing, receipt OCR, and bank statement uploads
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+AI Advisor: Personalized financial recommendations
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/17c3491c-8fe6-41e8-857a-c666edba8e6d) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Planner: Combines recurring transactions and long-term financial goals
