@@ -25,7 +25,7 @@ const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState<string>("");
   const [category, setCategory] = useState("");
   const [type, setType] = useState<"income" | "expense">("expense");
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -529,6 +529,20 @@ const Dashboard = () => {
     toast.success("Recurring transaction deleted successfully!");
   };
 
+  // Helper function to parse amounts with proper decimal handling
+  const parseAmount = (amountStr: string): number => {
+    if (!amountStr) return 0;
+    
+    // Remove currency symbols, commas, spaces, and other non-numeric characters except decimal point and minus
+    const cleaned = amountStr.toString().replace(/[₹$,\s]/g, '').trim();
+    
+    // Parse as float
+    const parsed = parseFloat(cleaned);
+    
+    // Return 0 if parsing failed, otherwise return the parsed number
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -537,13 +551,77 @@ const Dashboard = () => {
     }
   };
 
+  // Helper function to map raw categories to predefined ones
+  const mapCategoryToPredefined = (rawCategory: string): string => {
+    const category = rawCategory.toLowerCase();
+    
+    // Food & Dining
+    if (category.includes('food') || category.includes('restaurant') || category.includes('grocery') || 
+        category.includes('dining') || category.includes('cafe') || category.includes('coffee')) {
+      return 'Food & Dining';
+    }
+    
+    // Transport
+    if (category.includes('transport') || category.includes('fuel') || category.includes('gas') || 
+        category.includes('uber') || category.includes('taxi') || category.includes('bus') || 
+        category.includes('metro') || category.includes('train')) {
+      return 'Transport';
+    }
+    
+    // Rent & Utilities
+    if (category.includes('rent') || category.includes('utility') || category.includes('electricity') || 
+        category.includes('water') || category.includes('internet') || category.includes('phone') || 
+        category.includes('broadband')) {
+      return 'Rent & Utilities';
+    }
+    
+    // Healthcare
+    if (category.includes('health') || category.includes('medical') || category.includes('doctor') || 
+        category.includes('pharmacy') || category.includes('hospital')) {
+      return 'Healthcare';
+    }
+    
+    // Entertainment
+    if (category.includes('entertainment') || category.includes('movie') || category.includes('game') || 
+        category.includes('subscription') || category.includes('netflix') || category.includes('spotify')) {
+      return 'Entertainment';
+    }
+    
+    // Shopping
+    if (category.includes('shopping') || category.includes('clothes') || category.includes('fashion') || 
+        category.includes('amazon') || category.includes('flipkart')) {
+      return 'Shopping';
+    }
+    
+    // Education
+    if (category.includes('education') || category.includes('course') || category.includes('book') || 
+        category.includes('tuition') || category.includes('school')) {
+      return 'Education';
+    }
+    
+    // Investment
+    if (category.includes('investment') || category.includes('mutual') || category.includes('stock') || 
+        category.includes('sip') || category.includes('fd') || category.includes('savings')) {
+      return 'Investment';
+    }
+    
+    // Default
+    return 'Others / Miscellaneous';
+  };
+
   const processFile = async (file: File) => {
     try {
       const text = await file.text();
       let newTransactions: Transaction[] = [];
+      let incomeCount = 0;
+      let expenseCount = 0;
+
+      console.log('Processing file:', file.name);
+      console.log('File content preview:', text.substring(0, 200));
+      console.log('Total lines:', text.split('\n').length);
 
       if (file.name.endsWith('.csv')) {
-        // Enhanced CSV parsing with multiple format support
+        // Enhanced CSV parsing with Credit/Debit support
         const lines = text.split('\n').filter(line => line.trim());
         
         // Skip header if it exists (check if first line contains non-numeric amount)
@@ -561,13 +639,26 @@ const Dashboard = () => {
               // Format 1: date,description,amount,category,type
               if (columns.length >= 5) {
                 [date, description, amount, category, type] = columns;
+                
+                // Handle Credit/Debit types
+                if (type && type.toLowerCase() === 'credit') {
+                  type = 'income';
+                } else if (type && type.toLowerCase() === 'debit') {
+                  type = 'expense';
+                } else {
+                  // Fallback to amount sign
+                  const parsedAmount = parseAmount(amount);
+                  type = parsedAmount < 0 ? 'expense' : 'income';
+                  amount = Math.abs(parsedAmount).toString();
+                }
               }
               // Format 2: date,description,amount (auto-detect expense)
               else if (columns.length >= 3) {
                 [date, description, amount] = columns;
                 category = 'Others / Miscellaneous';
-                type = parseFloat(amount) < 0 ? 'expense' : 'income';
-                amount = Math.abs(parseFloat(amount)).toString();
+                const parsedAmount = parseAmount(amount);
+                type = parsedAmount < 0 ? 'expense' : 'income';
+                amount = Math.abs(parsedAmount).toString();
               }
               
               // Parse date
@@ -587,7 +678,17 @@ const Dashboard = () => {
                 }
               }
               
-              const parsedAmount = parseFloat(amount?.replace(/[^\d.-]/g, '') || '0');
+              // Use parseAmount for proper decimal handling
+              const parsedAmount = parseAmount(amount);
+              
+              // Map category to predefined categories
+              const mappedCategory = mapCategoryToPredefined(category);
+              
+              // Count income/expense
+              if (type === 'income') incomeCount++;
+              else if (type === 'expense') expenseCount++;
+              
+              console.log(`Parsed CSV transaction: ${description} - ${parsedAmount} (${type}) - ${mappedCategory}`);
               
               if (parsedAmount > 0 && description) {
                 return {
@@ -595,8 +696,8 @@ const Dashboard = () => {
                   date: parsedDate,
                   description: description || 'Imported transaction',
                   amount: parsedAmount,
-                  category: category || 'Others / Miscellaneous',
-                  type: (type?.toLowerCase() === 'income' ? 'income' : 'expense') as 'income' | 'expense'
+                  category: mappedCategory,
+                  type: type as 'income' | 'expense'
                 };
               }
             }
@@ -606,23 +707,56 @@ const Dashboard = () => {
       }
       // Handle other file formats
       else if (file.name.endsWith('.txt')) {
-        // Simple text format parsing
+        // Enhanced TXT format parsing with keyword detection
         const lines = text.split('\n').filter(line => line.trim());
         newTransactions = lines
           .map((line, index) => {
             const parts = line.split(/[\s,]+/);
             if (parts.length >= 2) {
-              const amount = parseFloat(parts[parts.length - 1]);
+              const numPart = parts[parts.length - 1];
               const description = parts.slice(0, -1).join(' ');
               
-              if (!isNaN(amount) && description) {
+              // Use parseAmount for proper decimal handling
+              const parsedNum = parseAmount(numPart);
+              
+              if (!isNaN(parsedNum) && description) {
+                // Detect transaction type based on keywords in description
+                const descLower = description.toLowerCase();
+                let transactionType = 'expense'; // default
+                
+                // Income keywords
+                if (descLower.includes('credit') || descLower.includes('deposit') || 
+                    descLower.includes('salary') || descLower.includes('income') ||
+                    descLower.includes('refund') || descLower.includes('bonus')) {
+                  transactionType = 'income';
+                }
+                // Expense keywords
+                else if (descLower.includes('debit') || descLower.includes('withdrawal') || 
+                         descLower.includes('payment') || descLower.includes('purchase') ||
+                         descLower.includes('bill') || descLower.includes('fee')) {
+                  transactionType = 'expense';
+                }
+                // Fallback to amount sign
+                else {
+                  transactionType = parsedNum < 0 ? 'expense' : 'income';
+                }
+                
+                // Map category based on description
+                const mappedCategory = mapCategoryToPredefined(description);
+                
+                // Count income/expense
+                if (transactionType === 'income') incomeCount++;
+                else if (transactionType === 'expense') expenseCount++;
+                
+                console.log(`Parsed TXT transaction: ${description} - ${Math.abs(parsedNum)} (${transactionType}) - ${mappedCategory}`);
+                
                 return {
                   id: Date.now() + index,
                   date: new Date().toISOString().split('T')[0],
                   description,
-                  amount: Math.abs(amount),
-                  category: 'Others / Miscellaneous',
-                  type: (amount < 0 ? 'expense' : 'income') as 'income' | 'expense'
+                  amount: Math.abs(parsedNum),
+                  category: mappedCategory,
+                  type: transactionType as 'income' | 'expense'
                 };
               }
             }
@@ -636,15 +770,48 @@ const Dashboard = () => {
         setTransactions(updatedTransactions);
         localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
         generateBudgetSuggestions(updatedTransactions);
-        toast.success(`Imported ${newTransactions.length} transactions successfully!`);
+        // Enhanced success message with counts
+        toast.success(`${newTransactions.length} transactions imported successfully!\nIncome: ${incomeCount}, Expenses: ${expenseCount}`);
+        
+        // Debug logging for decimal verification
+        console.log('Sample parsed records:');
+        newTransactions.slice(0, 3).forEach((txn, idx) => {
+          console.log(`${idx + 1}. ${txn.description} - Amount: ${txn.amount} (type: ${typeof txn.amount}) - ${txn.type} - ${txn.category}`);
+        });
+        
+        // Verify all amounts are numbers
+        const allAmountsValid = newTransactions.every(txn => typeof txn.amount === 'number' && !isNaN(txn.amount));
+        console.log('All amounts are valid numbers:', allAmountsValid);
+        
+        // Show examples of decimal precision
+        const decimalExamples = newTransactions.filter(txn => txn.amount % 1 !== 0).slice(0, 3);
+        if (decimalExamples.length > 0) {
+          console.log('Decimal precision examples:');
+          decimalExamples.forEach(txn => {
+            console.log(`${txn.description}: ${txn.amount} (${txn.amount.toFixed(2)})`);
+          });
+        }
       } else {
-        toast.error('No valid transactions found. Please check your file format.\n\nSupported formats:\n- CSV: date,description,amount,category,type\n- CSV: date,description,amount\n- TXT: description amount');
+        toast.error('No valid transactions found. Please check your file format.\n\nSupported formats:\n- CSV: date,description,amount,category,type (Credit/Debit)\n- CSV: date,description,amount\n- TXT: description amount (auto-detection)');
       }
     } catch (error) {
       console.error('File processing error:', error);
       toast.error('Error processing file. Please check the format and try again.');
     }
   };
+
+  // Test function to verify decimal precision (can be called from console)
+  const testDecimalPrecision = () => {
+    const testValues = ['0.05', '12.56', '450.75', '1000.00', '0.99'];
+    console.log('Testing decimal precision:');
+    testValues.forEach(val => {
+      const parsed = parseFloat(val);
+      console.log(`Input: "${val}" → Parsed: ${parsed} (type: ${typeof parsed})`);
+    });
+  };
+
+  // Make test function available globally for debugging
+  (window as any).testDecimalPrecision = testDecimalPrecision;
 
   const handleLogout = () => {
     localStorage.removeItem("spendwise_current_user");
@@ -660,10 +827,13 @@ const Dashboard = () => {
       return;
     }
 
+    const parsedAmount = parseFloat(amount);
+    console.log(`Adding transaction: ${description} - Amount: ${parsedAmount} (type: ${typeof parsedAmount}) - ${type}`);
+    
     const newTransaction: Transaction = {
       id: Date.now(),
       description,
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       category,
       type,
       date
@@ -1210,10 +1380,22 @@ const Dashboard = () => {
                         placeholder="0.00"
                         value={amount}
                         onChange={(e) => {
-                          const value = Math.max(0, parseFloat(e.target.value) || 0);
-                          setAmount(value.toString());
+                          const inputValue = e.target.value;
+                          // Allow empty string for clearing the field
+                          if (inputValue === '') {
+                            setAmount('');
+                            return;
+                          }
+                          
+                          // Parse the value and validate it's a positive number
+                          const parsedValue = parseFloat(inputValue);
+                          if (!isNaN(parsedValue) && parsedValue >= 0) {
+                            // Keep the original string format to preserve decimal places
+                            setAmount(inputValue);
+                          }
+                          // If invalid, don't update the state (keeps previous valid value)
                         }}
-                        className="bg-input/50 border-border/50 focus:border-primary"
+                        className="bg-input/50 border-border/50 focus:border-primary [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                       />
                     </div>
 
@@ -1292,9 +1474,9 @@ const Dashboard = () => {
                   <div className="text-xs text-foreground/60">
                     <p>Supported formats:</p>
                     <div className="font-mono bg-accent/50 p-2 rounded mt-1 text-xs">
-                      <p>CSV: date,description,amount,category,type</p>
+                      <p>CSV: date,description,amount,category,type (Credit/Debit)</p>
                       <p>CSV: date,description,amount</p>
-                      <p>TXT: description amount</p>
+                      <p>TXT: description amount (auto-detection)</p>
                     </div>
                   </div>
                 </CardContent>
