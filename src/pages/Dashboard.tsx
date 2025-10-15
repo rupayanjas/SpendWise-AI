@@ -10,6 +10,13 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import { WalletCard } from "@/components/WalletCard";
+import { SWTTokenCard } from "@/components/SWTTokenCard";
+import { WalletButton } from "@/components/WalletButton";
+import { SWTTokenButton } from "@/components/SWTTokenButton";
+import { geminiService } from "@/services/gemini";
+import { fileParserService } from "@/services/fileParser";
+import apiService from "@/services/api";
 
 interface Transaction {
   id: number;
@@ -194,14 +201,32 @@ const Dashboard = () => {
     const userData = JSON.parse(currentUser);
     setUser(userData);
     
+    // Load transactions from backend API
+    const loadTransactionsFromAPI = async () => {
+      try {
+        const response = await apiService.getTransactions();
+        const loadedTransactions = response.data?.transactions || [];
+        setTransactions(loadedTransactions);
+        generateBudgetSuggestions(loadedTransactions);
+        generateNotifications(loadedTransactions);
+
+        // Also save to localStorage for offline access
+        localStorage.setItem(`transactions_${userData.id}`, JSON.stringify(loadedTransactions));
+      } catch (error) {
+        console.error('Failed to load transactions from API:', error);
+        // Fallback to localStorage if API fails
+        const savedTransactions = localStorage.getItem(`transactions_${userData.id}`);
+        if (savedTransactions) {
+          const loadedTransactions = JSON.parse(savedTransactions);
+          setTransactions(loadedTransactions);
+          generateBudgetSuggestions(loadedTransactions);
+          generateNotifications(loadedTransactions);
+        }
+      }
+    };
+
     // Load transactions for this user
-    const savedTransactions = localStorage.getItem(`transactions_${userData.id}`);
-    if (savedTransactions) {
-      const loadedTransactions = JSON.parse(savedTransactions);
-      setTransactions(loadedTransactions);
-      generateBudgetSuggestions(loadedTransactions);
-      generateNotifications(loadedTransactions);
-    }
+    loadTransactionsFromAPI();
     
     // Load budget and investments
     const savedBudget = localStorage.getItem(`budget_${userData.id}`);
@@ -232,7 +257,7 @@ const Dashboard = () => {
     }
   }, [navigate]);
 
-  const generateBudgetSuggestions = (transactionData: Transaction[]) => {
+  const generateBudgetSuggestions = async (transactionData: Transaction[]) => {
     const monthlyExpenses = transactionData
       .filter(t => t.type === 'expense')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -248,7 +273,8 @@ const Dashboard = () => {
         return acc;
       }, {} as Record<string, number>);
 
-    const suggestions = [
+    // Default suggestions
+    let suggestions = [
       {
         category: 'Emergency Fund',
         suggestion: `Save ₹${(monthlyIncome * 0.2).toFixed(0)} monthly (20% of income)`,
@@ -268,6 +294,24 @@ const Dashboard = () => {
         icon: TrendingUp
       }
     ];
+
+    // Try to get AI-powered suggestions
+    try {
+      if (transactionData.length > 0 && monthlyIncome > 0) {
+        const aiSuggestions = await geminiService.getBudgetSuggestions(transactionData, monthlyIncome);
+        
+        // Parse AI suggestions and update the first suggestion
+        if (aiSuggestions && aiSuggestions.length > 50) {
+          suggestions[0] = {
+            ...suggestions[0],
+            suggestion: aiSuggestions.substring(0, 100) + '...',
+            priority: 'high'
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('AI Budget Suggestions failed, using defaults:', error);
+    }
 
     setBudgetSuggestions(suggestions);
   };
@@ -345,7 +389,7 @@ const Dashboard = () => {
     }
   };
   
-  const handleChatSubmit = (e: React.FormEvent) => {
+  const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
     
@@ -356,15 +400,44 @@ const Dashboard = () => {
       time: new Date().toLocaleTimeString()
     };
     
-    // AI Response simulation
-    const aiResponse = {
+    setChatMessages(prev => [...prev, userMessage]);
+    
+    // Show typing indicator
+    const typingMessage = {
       id: Date.now() + 1,
       type: 'ai',
-      message: generateAIResponse(chatInput),
-      time: new Date().toLocaleTimeString()
+      message: 'AI is thinking...',
+      time: new Date().toLocaleTimeString(),
+      isTyping: true
     };
     
-    setChatMessages(prev => [...prev, userMessage, aiResponse]);
+    setChatMessages(prev => [...prev, typingMessage]);
+    
+    try {
+      // Get AI response using Gemini
+      const aiResponseText = await geminiService.getChatResponse(chatInput, transactions);
+      
+      const aiResponse = {
+        id: Date.now() + 2,
+        type: 'ai',
+        message: aiResponseText,
+        time: new Date().toLocaleTimeString()
+      };
+      
+      // Replace typing message with actual response
+      setChatMessages(prev => prev.slice(0, -1).concat(aiResponse));
+    } catch (error) {
+      console.error('AI Chat Error:', error);
+      const errorResponse = {
+        id: Date.now() + 2,
+        type: 'ai',
+        message: generateAIResponse(chatInput), // Fallback to local response
+        time: new Date().toLocaleTimeString()
+      };
+      
+      setChatMessages(prev => prev.slice(0, -1).concat(errorResponse));
+    }
+    
     setChatInput('');
   };
   
@@ -539,110 +612,38 @@ const Dashboard = () => {
 
   const processFile = async (file: File) => {
     try {
-      const text = await file.text();
-      let newTransactions: Transaction[] = [];
+      toast.info('Processing file... This may take a moment for AI categorization.');
 
-      if (file.name.endsWith('.csv')) {
-        // Enhanced CSV parsing with multiple format support
-        const lines = text.split('\n').filter(line => line.trim());
-        
-        // Skip header if it exists (check if first line contains non-numeric amount)
-        const startIndex = lines.length > 0 && isNaN(parseFloat(lines[0].split(',')[2])) ? 1 : 0;
-        
-        newTransactions = lines
-          .slice(startIndex)
-          .map((line, index) => {
-            const columns = line.split(',').map(col => col.trim().replace(/"/g, ''));
-            
-            // Support multiple CSV formats
-            let date, description, amount, category, type;
-            
-            if (columns.length >= 3) {
-              // Format 1: date,description,amount,category,type
-              if (columns.length >= 5) {
-                [date, description, amount, category, type] = columns;
-              }
-              // Format 2: date,description,amount (auto-detect expense)
-              else if (columns.length >= 3) {
-                [date, description, amount] = columns;
-                category = 'Others / Miscellaneous';
-                type = parseFloat(amount) < 0 ? 'expense' : 'income';
-                amount = Math.abs(parseFloat(amount)).toString();
-              }
-              
-              // Parse date
-              let parsedDate = new Date().toISOString().split('T')[0];
-              if (date) {
-                const dateFormats = [
-                  /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
-                  /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY
-                  /^\d{2}-\d{2}-\d{4}$/, // MM-DD-YYYY
-                ];
-                
-                if (dateFormats.some(format => format.test(date))) {
-                  const dateObj = new Date(date);
-                  if (!isNaN(dateObj.getTime())) {
-                    parsedDate = dateObj.toISOString().split('T')[0];
-                  }
-                }
-              }
-              
-              const parsedAmount = parseFloat(amount?.replace(/[^\d.-]/g, '') || '0');
-              
-              if (parsedAmount > 0 && description) {
-                return {
-                  id: Date.now() + index,
-                  date: parsedDate,
-                  description: description || 'Imported transaction',
-                  amount: parsedAmount,
-                  category: category || 'Others / Miscellaneous',
-                  type: (type?.toLowerCase() === 'income' ? 'income' : 'expense') as 'income' | 'expense'
-                };
-              }
-            }
-            return null;
-          })
-          .filter((transaction): transaction is Transaction => transaction !== null);
-      }
-      // Handle other file formats
-      else if (file.name.endsWith('.txt')) {
-        // Simple text format parsing
-        const lines = text.split('\n').filter(line => line.trim());
-        newTransactions = lines
-          .map((line, index) => {
-            const parts = line.split(/[\s,]+/);
-            if (parts.length >= 2) {
-              const amount = parseFloat(parts[parts.length - 1]);
-              const description = parts.slice(0, -1).join(' ');
-              
-              if (!isNaN(amount) && description) {
-                return {
-                  id: Date.now() + index,
-                  date: new Date().toISOString().split('T')[0],
-                  description,
-                  amount: Math.abs(amount),
-                  category: 'Others / Miscellaneous',
-                  type: (amount < 0 ? 'expense' : 'income') as 'income' | 'expense'
-                };
-              }
-            }
-            return null;
-          })
-          .filter((transaction): transaction is Transaction => transaction !== null);
-      }
+      // Use the enhanced file parser service
+      const newTransactions = await fileParserService.parseFile(file);
 
       if (newTransactions.length > 0) {
-        const updatedTransactions = [...newTransactions, ...transactions];
-        setTransactions(updatedTransactions);
-        localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
-        generateBudgetSuggestions(updatedTransactions);
-        toast.success(`Imported ${newTransactions.length} transactions successfully!`);
+        try {
+          // Try to save to backend API
+          await Promise.all(newTransactions.map(t => apiService.createTransaction(t)));
+
+          const updatedTransactions = [...newTransactions, ...transactions];
+          setTransactions(updatedTransactions);
+          localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+          await generateBudgetSuggestions(updatedTransactions);
+
+          toast.success(`✅ Successfully imported ${newTransactions.length} transactions to backend!`);
+        } catch (error) {
+          console.error('Failed to save to backend, using localStorage only:', error);
+          // Fallback to localStorage only
+          const updatedTransactions = [...newTransactions, ...transactions];
+          setTransactions(updatedTransactions);
+          localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+          await generateBudgetSuggestions(updatedTransactions);
+
+          toast.success(`✅ Imported ${newTransactions.length} transactions (offline mode)`);
+        }
       } else {
-        toast.error('No valid transactions found. Please check your file format.\n\nSupported formats:\n- CSV: date,description,amount,category,type\n- CSV: date,description,amount\n- TXT: description amount');
+        toast.error('No valid transactions found in the file. Please check the format and try again.');
       }
     } catch (error) {
       console.error('File processing error:', error);
-      toast.error('Error processing file. Please check the format and try again.');
+      toast.error(`Error processing file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -652,9 +653,9 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  const handleAddTransaction = (e: React.FormEvent) => {
+  const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!description || !amount || !category) {
       toast.error("Please fill in all fields");
       return;
@@ -669,22 +670,58 @@ const Dashboard = () => {
       date
     };
 
-    const updatedTransactions = [newTransaction, ...transactions];
-    setTransactions(updatedTransactions);
-    localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
-    generateBudgetSuggestions(updatedTransactions);
-    
-    toast.success("Transaction added!");
-    setDescription("");
-    setAmount("");
-    setCategory("");
+    try {
+      // Save to backend API
+      await apiService.createTransaction(newTransaction);
+
+      // Update local state
+      const updatedTransactions = [newTransaction, ...transactions];
+      setTransactions(updatedTransactions);
+
+      // Also save to localStorage for offline access
+      localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+
+      generateBudgetSuggestions(updatedTransactions);
+
+      toast.success("Transaction added!");
+      setDescription("");
+      setAmount("");
+      setCategory("");
+    } catch (error) {
+      console.error('Failed to save transaction to backend:', error);
+      // Fallback to localStorage only
+      const updatedTransactions = [newTransaction, ...transactions];
+      setTransactions(updatedTransactions);
+      localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+      generateBudgetSuggestions(updatedTransactions);
+
+      toast.success("Transaction added (offline mode)!");
+      setDescription("");
+      setAmount("");
+      setCategory("");
+    }
   };
 
-  const handleDeleteTransaction = (id: number) => {
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-    localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
-    toast.success("Transaction deleted");
+  const handleDeleteTransaction = async (id: number) => {
+    try {
+      // Delete from backend API
+      await apiService.deleteTransaction(id.toString());
+
+      // Update local state
+      const updatedTransactions = transactions.filter(t => t.id !== id);
+      setTransactions(updatedTransactions);
+      localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+
+      toast.success("Transaction deleted");
+    } catch (error) {
+      console.error('Failed to delete transaction from backend:', error);
+      // Fallback to localStorage only
+      const updatedTransactions = transactions.filter(t => t.id !== id);
+      setTransactions(updatedTransactions);
+      localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
+
+      toast.success("Transaction deleted (offline mode)");
+    }
   };
 
   const totalIncome = transactions.filter(t => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
@@ -803,6 +840,12 @@ const Dashboard = () => {
               </Button>
               
             </div>
+            
+            {/* Web3 Wallet */}
+            <WalletButton />
+            
+            {/* SWT Tokens */}
+            <SWTTokenButton />
             
             {/* AI Chatbot */}
             <Button
