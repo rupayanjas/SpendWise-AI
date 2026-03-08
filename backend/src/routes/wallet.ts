@@ -15,9 +15,13 @@ router.post('/connect', authenticate, [
     .matches(/^0x[a-fA-F0-9]{40}$/)
     .withMessage('Please provide a valid Ethereum wallet address'),
   body('signature')
-    .optional()
+    .notEmpty()
     .isString()
-    .withMessage('Signature must be a string')
+    .withMessage('Signature is required and must be a string'),
+  body('message')
+    .notEmpty()
+    .isString()
+    .withMessage('Message is required and must be a string')
 ], asyncHandler(async (req: AuthRequest, res: express.Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -28,7 +32,7 @@ router.post('/connect', authenticate, [
     });
   }
 
-  const { walletAddress, signature } = req.body;
+  const { walletAddress, signature, message } = req.body;
   const userId = req.user!._id;
 
   // Check if wallet is already connected to another user
@@ -44,27 +48,43 @@ router.post('/connect', authenticate, [
     });
   }
 
-  // Optional: Verify signature if provided
-  if (signature) {
-    try {
-      const message = `Connect wallet ${walletAddress} to SpendWise AI account`;
-      const recoveredAddress = ethers.verifyMessage(message, signature);
-      
-      if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid signature for wallet address'
-        });
-      }
-    } catch (error) {
+  // Verify signature to prove wallet ownership
+  try {
+    // Prevent signature replay attacks and bind address to signature
+    const messagePrefix = `Connect wallet ${walletAddress.toLowerCase()} to SpendWise AI account - `;
+    if (!message.startsWith(messagePrefix)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid signature format'
+        message: 'Invalid message format'
       });
     }
+
+    // Extract and verify timestamp to ensure message is recent (within 5 minutes)
+    const timestampStr = message.replace(messagePrefix, '');
+    const timestamp = parseInt(timestampStr, 10);
+
+    if (isNaN(timestamp) || Date.now() - timestamp > 5 * 60 * 1000 || timestamp > Date.now() + 60000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Signature expired or invalid timestamp'
+      });
+    }
+
+    const recoveredAddress = ethers.verifyMessage(message, signature);
+
+    if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid signature for wallet address'
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid signature format'
+    });
   }
 
-  // Update user with wallet address
   const updatedUser = await User.findByIdAndUpdate(
     userId,
     { walletAddress: walletAddress.toLowerCase() },

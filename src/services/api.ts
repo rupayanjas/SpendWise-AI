@@ -78,10 +78,10 @@ class ApiService {
   }
 
   // Wallet endpoints
-  async connectWallet(walletAddress: string, signature: string) {
+  async connectWallet(walletAddress: string, signature: string, message: string) {
     return this.request('/wallet/connect', {
       method: 'POST',
-      body: JSON.stringify({ walletAddress, signature }),
+      body: JSON.stringify({ walletAddress, signature, message }),
     });
   }
 

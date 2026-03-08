@@ -56,7 +56,7 @@ class Web3Service {
       }
 
       // Sign a message to verify ownership
-      const message = `Connect wallet to SpendWise AI - ${Date.now()}`;
+      const message = `Connect wallet ${address.toLowerCase()} to SpendWise AI account - ${Date.now()}`;
       const signature = await this.ethereum.request({
         method: 'personal_sign',
         params: [message, address],
@@ -64,7 +64,7 @@ class Web3Service {
 
       // Send wallet info to backend
       try {
-        await apiService.connectWallet(address, signature);
+        await apiService.connectWallet(address, signature, message);
       } catch (error) {
         console.warn('Could not save wallet to backend:', error);
       }
