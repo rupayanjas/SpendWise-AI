@@ -1,0 +1,4 @@
+## 2024-03-12 - [CRITICAL] Missing Admin Authorization on Batch Earn Endpoint
+**Vulnerability:** The `/batch-earn` endpoint in `backend/src/routes/rewards.ts` allowed any authenticated user to trigger batch reward token distributions, bypassing standard admin authorization checks. This was due to an absence of an `isAdmin` flag on the Mongoose `IUser` schema and no RBAC implementation in the route.
+**Learning:** Incomplete implementations with comments like `// This could be restricted to admin users only` can leave critical financial operations exposed if authorization layers are bypassed.
+**Prevention:** Extend user schema to include robust roles/permissions from the beginning, and always wrap sensitive endpoints with appropriate role-based authorization checks such as `req.user.isAdmin`.

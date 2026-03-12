@@ -370,8 +370,15 @@ router.post('/batch-earn', authenticate, [
     });
   }
 
-  // This could be restricted to admin users only
-  // For now, we'll allow any authenticated user
+  // 🛡️ Sentinel: Restrict batch reward distribution to admin users only
+  // Prevents unauthorized users from distributing arbitrary amounts of tokens
+  if (!req.user?.isAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Insufficient permissions for this operation'
+    });
+  }
+
   const { rewards } = req.body;
 
   if (!blockchainService.isConfigured()) {
