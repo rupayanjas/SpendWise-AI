@@ -370,8 +370,15 @@ router.post('/batch-earn', authenticate, [
     });
   }
 
-  // This could be restricted to admin users only
-  // For now, we'll allow any authenticated user
+  // 🛡️ SECURITY: Restrict token minting/batch rewards to admin users only
+  // Prevents unauthorized users from minting arbitrary rewards
+  if (!req.user?.isAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Admin access required to batch distribute rewards'
+    });
+  }
+
   const { rewards } = req.body;
 
   if (!blockchainService.isConfigured()) {

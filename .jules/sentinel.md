@@ -1,0 +1,4 @@
+## 2024-05-18 - [CRITICAL] Missing Authorization Check on Admin API
+**Vulnerability:** The `/batch-earn` endpoint in the rewards route allowed any authenticated user to mint and distribute arbitrary amounts of SpendWise Tokens to any wallet address.
+**Learning:** Even if an endpoint's comment states it "could be restricted to admin users only," without explicit code enforcing role-based access control (RBAC), the endpoint defaults to the lowest required privilege level (in this case, basic authentication). This created a severe authorization bypass vulnerability.
+**Prevention:** Always implement explicit RBAC checks (e.g., `req.user.isAdmin`) on administrative or sensitive operations, especially those interacting with token distribution or financial logic. Do not rely on "TODO" comments for security.
