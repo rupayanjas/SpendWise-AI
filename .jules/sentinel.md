@@ -1,0 +1,4 @@
+## 2024-05-18 - Fix Mass Assignment in Transaction Update
+**Vulnerability:** A mass assignment vulnerability existed in `backend/src/routes/transactions.ts` during the `PUT /api/transactions/:id` update operation. The code used `Object.assign(transaction, req.body)`, which allowed an attacker to overwrite any field on the `Transaction` model (e.g., `isVerified`, `proofHash`, or potentially even `userId`) simply by including them in the JSON request body.
+**Learning:** This existed because `req.body` directly maps to the incoming request payload. Using `Object.assign` directly with `req.body` to update a Mongoose model document implicitly trusts all inputs, bypassing schema intent and allowing malicious payloads to alter protected fields.
+**Prevention:** Never use `Object.assign(doc, req.body)` to update models. Always use an explicit allow-list of fields that the user is authorized to modify.
