@@ -1,0 +1,4 @@
+## 2024-05-24 - Mass Assignment Vulnerability in Mongoose Updates
+**Vulnerability:** The codebase was directly applying `req.body` to Mongoose documents using `Object.assign(doc, req.body)` in `backend/src/routes/transactions.ts`. This allowed an attacker to overwrite sensitive fields such as `isVerified` and `hash` that were not intended to be updated via the endpoint.
+**Learning:** Using `express-validator` to validate inputs is not sufficient if the raw `req.body` is subsequently passed to a data-modification function. The `req.body` object contains all properties sent by the client, including unvalidated and potentially malicious ones.
+**Prevention:** Always use an explicit allowlist or `express-validator`'s `matchedData(req)` to extract only the validated fields before applying updates to Mongoose models. Never use `Object.assign` or `$set` directly with `req.body`.
