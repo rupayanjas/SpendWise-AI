@@ -1,0 +1,4 @@
+## 2024-03-17 - Prevent Mass Assignment in Mongoose Documents
+**Vulnerability:** A mass assignment vulnerability existed in `backend/src/routes/transactions.ts` because `Object.assign(transaction, req.body)` was used. This could allow malicious users to override restricted fields (e.g. `isVerified`, `hash`, `userId`) if they were included in the request payload.
+**Learning:** `req.body` retains unvalidated properties in Express, even when using `express-validator` (unless `matchedData(req)` is utilized). Updating Mongoose documents with unvalidated payloads via `Object.assign` is a critical security risk.
+**Prevention:** Always use an explicit allowlist or `matchedData(req)` when updating Mongoose documents to ensure only safe, expected fields are modified. Add comments detailing the security rationale.

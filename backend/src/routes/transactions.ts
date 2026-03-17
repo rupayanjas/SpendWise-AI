@@ -310,7 +310,13 @@ router.put('/:id', authenticate, [
   const oldCategory = transaction.category;
 
   // Update transaction
-  Object.assign(transaction, req.body);
+  // SECURITY: Prevent mass assignment by explicitly allowing only specific fields
+  const allowedUpdates = ['description', 'amount', 'category', 'date', 'merchant', 'location', 'tags'];
+  allowedUpdates.forEach(update => {
+    if (req.body[update] !== undefined) {
+      (transaction as any)[update] = req.body[update];
+    }
+  });
   await transaction.save();
 
   // Update budgets if expense amount or category changed
