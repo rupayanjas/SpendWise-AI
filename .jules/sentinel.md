@@ -1,0 +1,4 @@
+## 2024-05-16 - Prevent Mass Assignment in Mongoose Documents
+**Vulnerability:** A mass assignment vulnerability existed in `transactions.ts` because `Object.assign(transaction, req.body)` allowed any property in the request body to update the transaction document, potentially including sensitive or restricted fields like `isVerified` or `proofHash`.
+**Learning:** In an Express/Mongoose stack, `req.body` often contains unvalidated keys even if `express-validator` middleware is present, making `Object.assign` unsafe.
+**Prevention:** Use `matchedData(req, { locations: ['body'] })` from `express-validator` to extract only the fields that have been explicitly validated, or use an explicit allowlist before updating documents.
