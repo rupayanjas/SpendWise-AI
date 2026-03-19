@@ -1,0 +1,4 @@
+## 2024-05-08 - [Mass Assignment Vulnerability in Transaction Update]
+**Vulnerability:** The PUT `/api/transactions/:id` route was updating transaction objects directly with `req.body` via `Object.assign(transaction, req.body)`. This allowed attackers to overwrite arbitrary fields like `userId`, `isVerified`, and `proofHash`.
+**Learning:** Even with `express-validator` middleware running and failing if explicit validations aren't met, unvalidated fields present in `req.body` are still passed down to the route handler. Using `Object.assign()` directly with `req.body` bypasses the validation schema.
+**Prevention:** Always use `matchedData(req, { locations: ['body'] })` from `express-validator` to construct the update object containing ONLY explicitly validated fields, or use a strict allowlist.
