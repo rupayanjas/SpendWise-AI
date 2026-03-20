@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email: string;
   password: string;
   walletAddress?: string;
+  isAdmin: boolean;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -36,6 +37,10 @@ const userSchema = new Schema<IUser>({
     type: String,
     default: null,
     match: [/^0x[a-fA-F0-9]{40}$/, 'Please enter a valid wallet address']
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
