@@ -49,6 +49,17 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
+export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  if (!req.user || !req.user.isAdmin) {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Administrator privileges required.'
+    });
+    return;
+  }
+  next();
+};
+
 export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
