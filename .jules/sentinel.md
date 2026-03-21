@@ -1,0 +1,4 @@
+## 2024-05-24 - [Mass Assignment]
+**Vulnerability:** Object.assign(transaction, req.body) allows an attacker to update any property of the Transaction model (like `isVerified` or `userId`) by passing those fields in the request body.
+**Learning:** Even though Express Validator validates specific fields, `req.body` still contains *all* unvalidated fields submitted by the client unless we explicitly filter it. This leads to mass assignment.
+**Prevention:** Always use `matchedData(req)` from `express-validator` to get only the validated fields, or use an explicit allowlist before assigning to the model object.
