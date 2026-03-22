@@ -1,5 +1,5 @@
 import express from 'express';
-import { body, query, validationResult } from 'express-validator';
+import { body, query, validationResult, matchedData } from 'express-validator';
 import crypto from 'crypto';
 import Transaction from '../models/Transaction';
 import Budget from '../models/Budget';
@@ -310,7 +310,11 @@ router.put('/:id', authenticate, [
   const oldCategory = transaction.category;
 
   // Update transaction
-  Object.assign(transaction, req.body);
+  // 🛡️ Sentinel: Prevent Mass Assignment vulnerability
+  // Only update fields that have been explicitly validated. This prevents malicious users
+  // from passing unvalidated properties (like 'isVerified', 'proofHash', or 'userId') in req.body.
+  const validatedData = matchedData(req, { locations: ['body'] });
+  Object.assign(transaction, validatedData);
   await transaction.save();
 
   // Update budgets if expense amount or category changed
