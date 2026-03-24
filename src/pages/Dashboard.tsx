@@ -124,7 +124,7 @@ const Dashboard = () => {
             updatedProcessedDates[processKey] = today;
 
             // Calculate next date based on frequency
-            let nextRecurringDate = new Date(recurring.nextDate);
+            const nextRecurringDate = new Date(recurring.nextDate);
             switch (recurring.frequency) {
               case 'daily':
                 nextRecurringDate.setDate(nextRecurringDate.getDate() + 1);
@@ -274,7 +274,7 @@ const Dashboard = () => {
       }, {} as Record<string, number>);
 
     // Default suggestions
-    let suggestions = [
+    const suggestions = [
       {
         category: 'Emergency Fund',
         suggestion: `Save ₹${(monthlyIncome * 0.2).toFixed(0)} monthly (20% of income)`,

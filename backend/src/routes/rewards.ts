@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, param, validationResult } from 'express-validator';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, authorizeAdmin, AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { blockchainService, BlockchainService } from '../services/blockchain';
 import Transaction from '../models/Transaction';
@@ -345,8 +345,8 @@ router.get('/contract-info', asyncHandler(async (req: express.Request, res: expr
 
 // @route   POST /api/rewards/batch-earn
 // @desc    Batch earn rewards for multiple activities (admin only)
-// @access  Private
-router.post('/batch-earn', authenticate, [
+// @access  Private Admin
+router.post('/batch-earn', authenticate, authorizeAdmin, [
   body('rewards')
     .isArray({ min: 1 })
     .withMessage('Rewards must be a non-empty array'),
@@ -370,8 +370,6 @@ router.post('/batch-earn', authenticate, [
     });
   }
 
-  // This could be restricted to admin users only
-  // For now, we'll allow any authenticated user
   const { rewards } = req.body;
 
   if (!blockchainService.isConfigured()) {

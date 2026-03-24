@@ -70,3 +70,23 @@ export const optionalAuth = async (req: AuthRequest, res: Response, next: NextFu
     next();
   }
 };
+
+export const authorizeAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      message: 'Access denied. User not authenticated.'
+    });
+    return;
+  }
+
+  if (!req.user.isAdmin) {
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Requires administrator privileges.'
+    });
+    return;
+  }
+
+  next();
+};
