@@ -1,0 +1,4 @@
+## 2025-03-24 - [CRITICAL] Fix Mass Assignment Vulnerability in Transaction Update
+**Vulnerability:** A critical mass assignment vulnerability existed in `backend/src/routes/transactions.ts` where arbitrary fields (like `userId`, `hash`) could be overridden due to the usage of `Object.assign(transaction, req.body);`.
+**Learning:** `req.body` contains all fields submitted by the user, not just the ones validated by `express-validator`. By directly merging this object into the database document model, we inadvertently created a path to mass assignment exploits, allowing malicious users to elevate privileges or tamper with immutable data.
+**Prevention:** Always use `matchedData(req, { locations: ['body'] })` from `express-validator` to ensure that only explicitly validated and allowed fields are updated, instead of raw `req.body` directly.
