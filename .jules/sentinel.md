@@ -1,0 +1,4 @@
+## 2024-05-18 - Mass Assignment Vulnerability in Transaction Update Endpoint
+**Vulnerability:** `Object.assign(transaction, req.body)` was used in the `PUT /api/transactions/:id` endpoint. Because `req.body` contained raw user input and unvalidated properties, an attacker could potentially inject arbitrary fields into the document, such as `userId` (to reassign ownership), `isVerified` (to bypass verification), or `proofHash`.
+**Learning:** Even when `express-validator` is used to validate specific fields, `req.body` still retains all original properties from the user request. Modifying documents with raw `req.body` completely negates the field-level restrictions.
+**Prevention:** Use `matchedData(req, { locations: ['body'] })` from `express-validator` to safely extract only the fields that were explicitly validated, and use this sanitized object to update models.
