@@ -1,5 +1,5 @@
 import express from 'express';
-import { body, query, validationResult } from 'express-validator';
+import { body, query, validationResult, matchedData } from 'express-validator';
 import crypto from 'crypto';
 import Transaction from '../models/Transaction';
 import Budget from '../models/Budget';
@@ -309,8 +309,9 @@ router.put('/:id', authenticate, [
   const oldAmount = transaction.amount;
   const oldCategory = transaction.category;
 
-  // Update transaction
-  Object.assign(transaction, req.body);
+  // Update transaction using only validated data to prevent mass assignment
+  const safeData = matchedData(req, { locations: ['body'] });
+  Object.assign(transaction, safeData);
   await transaction.save();
 
   // Update budgets if expense amount or category changed
