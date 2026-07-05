@@ -2,11 +2,14 @@
   "name": "spendwise-backend",
   "version": "1.0.0",
   "description": "Production-ready Express backend for SpendWise-AI",
-  "main": "src/server.ts",
+  "main": "dist/server.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "build": "prisma generate && tsc",
+    "start": "prisma migrate deploy && node dist/server.js"
   },
   "dependencies": {
     "@google/genai": "^2.10.0",
