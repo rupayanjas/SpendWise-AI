@@ -10,9 +10,16 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import { useAuth } from "../context/AuthContext";
+import { transactionService } from "../services/transaction.service";
+import { budgetService } from "../services/budget.service";
+import { goalService } from "../services/goal.service";
+import { aiService } from "../services/ai.service";
+import { investmentService } from "../services/investment.service";
+import ReactMarkdown from 'react-markdown';
 
 interface Transaction {
-  id: number;
+  id: string | number;
   description: string;
   amount: number;
   category: string;
@@ -22,7 +29,7 @@ interface Transaction {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
@@ -31,7 +38,9 @@ const Dashboard = () => {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [budgetSuggestions, setBudgetSuggestions] = useState<any[]>([]);
-  const [monthlyBudget, setMonthlyBudget] = useState("");
+  const [aiInsights, setAiInsights] = useState<any>(null);
+  const [isInsightsLoading, setIsInsightsLoading] = useState(true);
+  const [monthlyBudget, setMonthlyBudget] = useState<string>("");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [investments, setInvestments] = useState<any[]>([]);
@@ -51,6 +60,8 @@ const Dashboard = () => {
   const [addingAmountToGoal, setAddingAmountToGoal] = useState<string | null>(null);
   const [addAmount, setAddAmount] = useState("");
   const [processedRecurringDates, setProcessedRecurringDates] = useState<{[key: string]: string}>({});
+  const [isDashboardLoading, setIsDashboardLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   // Category options
   const expenseCategories = [
@@ -117,7 +128,7 @@ const Dashboard = () => {
             updatedProcessedDates[processKey] = today;
 
             // Calculate next date based on frequency
-            let nextRecurringDate = new Date(recurring.nextDate);
+            const nextRecurringDate = new Date(recurring.nextDate);
             switch (recurring.frequency) {
               case 'daily':
                 nextRecurringDate.setDate(nextRecurringDate.getDate() + 1);
@@ -185,52 +196,68 @@ const Dashboard = () => {
   }, [showNotifications]);
 
   useEffect(() => {
-    const currentUser = localStorage.getItem("spendwise_current_user");
-    if (!currentUser) {
+    if (!authLoading && !isAuthenticated) {
       navigate("/login");
       return;
     }
     
-    const userData = JSON.parse(currentUser);
-    setUser(userData);
-    
-    // Load transactions for this user
-    const savedTransactions = localStorage.getItem(`transactions_${userData.id}`);
-    if (savedTransactions) {
-      const loadedTransactions = JSON.parse(savedTransactions);
-      setTransactions(loadedTransactions);
-      generateBudgetSuggestions(loadedTransactions);
-      generateNotifications(loadedTransactions);
-    }
-    
-    // Load budget and investments
-    const savedBudget = localStorage.getItem(`budget_${userData.id}`);
-    if (savedBudget) {
-      setMonthlyBudget(savedBudget);
-    }
-    
-    const savedInvestments = localStorage.getItem(`investments_${userData.id}`);
-    if (savedInvestments) {
-      setInvestments(JSON.parse(savedInvestments));
-    }
+    if (user) {
+      setIsDashboardLoading(true);
+      Promise.all([
+        transactionService.getAllTransactions(),
+        budgetService.getBudgets(),
+        goalService.getGoals(),
+        investmentService.getInvestments()
+      ])
+      .then(([transactionsData, budgetsData, goalsData, investmentsData]) => {
+        setTransactions(transactionsData);
+        generateBudgetSuggestions(transactionsData);
+        generateNotifications(transactionsData);
 
-    // Load goals and recurring transactions
-    const savedGoals = localStorage.getItem(`goals_${userData.id}`);
-    if (savedGoals) {
-      setGoals(JSON.parse(savedGoals));
-    }
+        // Map backend goals (title) to frontend (name)
+        const mappedGoals = goalsData.map((g: any) => ({
+          ...g,
+          name: g.title
+        }));
+        setGoals(mappedGoals);
 
-    const savedRecurring = localStorage.getItem(`recurring_${userData.id}`);
-    if (savedRecurring) {
-      setRecurringTransactions(JSON.parse(savedRecurring));
-    }
+        setInvestments(investmentsData);
 
-    // Load processed recurring dates
-    const savedProcessedDates = localStorage.getItem(`processedRecurringDates_${userData.id}`);
-    if (savedProcessedDates) {
-      setProcessedRecurringDates(JSON.parse(savedProcessedDates));
+        // Map budget limit for the "Total" category
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+        const totalBudget = budgetsData.find((b: any) => b.category === "Total" && b.month === currentMonth && b.year === currentYear);
+        if (totalBudget) {
+          setMonthlyBudget(totalBudget.limit.toString());
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load dashboard data', err);
+        toast.error("Failed to load dashboard data from server");
+      })
+      .finally(() => {
+        setIsDashboardLoading(false);
+      });
+      
+      // Fetch AI Insights independently so it doesn't block the main dashboard
+      setIsInsightsLoading(true);
+      aiService.getDashboardInsights()
+        .then(data => setAiInsights(data))
+        .catch(err => console.error('Failed to load AI insights', err))
+        .finally(() => setIsInsightsLoading(false));
+
+      const savedRecurring = localStorage.getItem(`recurring_${user.id}`);
+      if (savedRecurring) {
+        setRecurringTransactions(JSON.parse(savedRecurring));
+      }
+
+      // Load processed recurring dates
+      const savedProcessedDates = localStorage.getItem(`processedRecurringDates_${user.id}`);
+      if (savedProcessedDates) {
+        setProcessedRecurringDates(JSON.parse(savedProcessedDates));
+      }
     }
-  }, [navigate]);
+  }, [authLoading, isAuthenticated, navigate, user]);
 
   const generateBudgetSuggestions = (transactionData: Transaction[]) => {
     const monthlyExpenses = transactionData
@@ -336,74 +363,131 @@ const Dashboard = () => {
     setNotifications(notifications);
   };
   
-  const handleSetBudget = () => {
+  const handleSetBudget = async () => {
     if (monthlyBudget && user) {
-      localStorage.setItem(`budget_${user.id}`, monthlyBudget);
-      generateBudgetSuggestions(transactions);
-      generateNotifications(transactions);
-      toast.success('Monthly budget set successfully!');
+      setIsActionLoading(true);
+      try {
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+        
+        await budgetService.createBudget({
+          category: "Total",
+          limit: parseFloat(monthlyBudget),
+          month: currentMonth,
+          year: currentYear
+        });
+
+        generateBudgetSuggestions(transactions);
+        generateNotifications(transactions);
+        toast.success('Monthly budget set successfully!');
+      } catch (err) {
+        console.error('Failed to set budget', err);
+        toast.error('Failed to set monthly budget');
+      } finally {
+        setIsActionLoading(false);
+      }
     }
   };
   
-  const handleChatSubmit = (e: React.FormEvent) => {
+  const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
     
-    const userMessage = {
+    const userMessage = chatInput.trim();
+    if (!userMessage) return;
+    
+    setChatInput('');
+    
+    const userMessageObj = {
       id: Date.now(),
       type: 'user',
-      message: chatInput,
-      time: new Date().toLocaleTimeString()
+      message: userMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     
-    // AI Response simulation
-    const aiResponse = {
+    const loadingMessageObj = {
       id: Date.now() + 1,
       type: 'ai',
-      message: generateAIResponse(chatInput),
-      time: new Date().toLocaleTimeString()
+      message: 'Thinking...',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     
-    setChatMessages(prev => [...prev, userMessage, aiResponse]);
-    setChatInput('');
-  };
-  
-  const generateAIResponse = (input: string) => {
-    const lowerInput = input.toLowerCase();
+    setChatMessages(prev => [...prev, userMessageObj, loadingMessageObj]);
     
-    if (lowerInput.includes('budget')) {
-      return 'Based on your spending patterns, I recommend setting a budget of ₹25,000/month. This allows for essential expenses while building savings.';
+    try {
+      const response = await aiService.chat(userMessage);
+      
+      const aiResponseObj = {
+        id: Date.now() + 2,
+        type: 'ai',
+        message: response.reply,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      
+      setChatMessages(prev => [...prev.filter(m => m.id !== loadingMessageObj.id), aiResponseObj]);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to get AI response');
+      setChatMessages(prev => prev.filter(m => m.id !== loadingMessageObj.id));
     }
-    if (lowerInput.includes('save')) {
-      return 'Great question! I suggest the 50-30-20 rule: 50% needs, 30% wants, 20% savings. You could save ₹3,000 more by reducing dining out expenses.';
-    }
-    if (lowerInput.includes('invest')) {
-      return 'Consider starting with SIP in diversified mutual funds. Based on your income, ₹5,000/month in equity funds could be a good start.';
-    }
-    return 'I\'m here to help with your financial questions! Ask me about budgeting, saving, investing, or expense management.';
   };
 
-  const handleAddInvestment = () => {
+  const handleAddInvestment = async () => {
     if (!newInvestment.name || !newInvestment.value || !newInvestment.type) {
       toast.error("Please fill in all investment fields");
       return;
     }
 
-    const investment = {
-      id: Date.now(),
-      name: newInvestment.name,
-      value: parseFloat(newInvestment.value),
-      type: newInvestment.type,
-      date: new Date().toISOString().split('T')[0]
-    };
+    setIsActionLoading(true);
+    try {
+      await investmentService.createInvestment({
+        name: newInvestment.name,
+        value: parseFloat(newInvestment.value),
+        type: newInvestment.type
+      });
 
-    const updatedInvestments = [...investments, investment];
-    setInvestments(updatedInvestments);
-    localStorage.setItem(`investments_${user.id}`, JSON.stringify(updatedInvestments));
-    
-    setNewInvestment({ name: "", value: "", type: "" });
-    setShowAddInvestment(false);
-    toast.success("Investment added successfully!");
+      const [updatedInvestmentsData, updatedTransactionsData] = await Promise.all([
+        investmentService.getInvestments(),
+        transactionService.getAllTransactions()
+      ]);
+
+      setInvestments(updatedInvestmentsData);
+      setTransactions(updatedTransactionsData);
+      generateBudgetSuggestions(updatedTransactionsData);
+      
+      setNewInvestment({ name: "", value: "", type: "" });
+      setShowAddInvestment(false);
+      toast.success("Investment added successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add investment");
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleDeleteInvestment = async (id: string | number) => {
+    setIsActionLoading(true);
+    try {
+      if (typeof id === 'string') {
+        await investmentService.deleteInvestment(id);
+      }
+      
+      const [updatedInvestmentsData, updatedTransactionsData] = await Promise.all([
+        investmentService.getInvestments(),
+        transactionService.getAllTransactions()
+      ]);
+
+      setInvestments(updatedInvestmentsData);
+      setTransactions(updatedTransactionsData);
+      generateBudgetSuggestions(updatedTransactionsData);
+      
+      toast.success("Investment removed successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove investment");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const openExternalLink = (platform: string) => {
@@ -415,28 +499,32 @@ const Dashboard = () => {
     window.open(links[platform as keyof typeof links], '_blank');
   };
 
-  const handleAddGoal = () => {
+  const handleAddGoal = async () => {
     if (!newGoal.name || !newGoal.targetAmount || !newGoal.deadline) {
       toast.error("Please fill in all goal fields");
       return;
     }
 
-    const goal = {
-      id: Date.now(),
-      name: newGoal.name,
-      targetAmount: parseFloat(newGoal.targetAmount),
-      currentAmount: parseFloat(newGoal.currentAmount) || 0,
-      deadline: newGoal.deadline,
-      createdDate: new Date().toISOString().split('T')[0]
-    };
-
-    const updatedGoals = [...goals, goal];
-    setGoals(updatedGoals);
-    localStorage.setItem(`goals_${user.id}`, JSON.stringify(updatedGoals));
-    
-    setNewGoal({ name: "", targetAmount: "", currentAmount: "", deadline: "" });
-    setShowAddGoal(false);
-    toast.success("Goal added successfully!");
+    setIsActionLoading(true);
+    try {
+      const addedGoal = await goalService.createGoal({
+        title: newGoal.name,
+        targetAmount: parseFloat(newGoal.targetAmount),
+        deadline: new Date(newGoal.deadline).toISOString()
+      });
+      
+      const mappedGoal = { ...addedGoal, name: addedGoal.title };
+      setGoals([...goals, mappedGoal]);
+      
+      setNewGoal({ name: "", targetAmount: "", currentAmount: "", deadline: "" });
+      setShowAddGoal(false);
+      toast.success("Goal added successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add goal");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const handleAddRecurring = () => {
@@ -464,32 +552,63 @@ const Dashboard = () => {
     toast.success("Recurring transaction added successfully!");
   };
 
-  const deleteGoal = (goalId: number) => {
-    const updatedGoals = goals.filter(g => g.id !== goalId);
-    setGoals(updatedGoals);
-    localStorage.setItem(`goals_${user.id}`, JSON.stringify(updatedGoals));
-    toast.success("Goal deleted successfully!");
+  const deleteGoal = async (goalId: string | number) => {
+    setIsActionLoading(true);
+    try {
+      if (typeof goalId === 'string') {
+        await goalService.deleteGoal(goalId);
+      }
+      setGoals(goals.filter(g => g.id !== goalId));
+      toast.success("Goal deleted successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete goal");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
-  const handleAddAmountToGoal = (goalId: number) => {
+  const handleAddAmountToGoal = async (goalId: string | number) => {
     if (!addAmount || parseFloat(addAmount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
-    const updatedGoals = goals.map(g => 
-      g.id === goalId 
-        ? { ...g, currentAmount: g.currentAmount + parseFloat(addAmount) }
-        : g
-    );
-    setGoals(updatedGoals);
-    localStorage.setItem(`goals_${user.id}`, JSON.stringify(updatedGoals));
-    
-    const goalName = goals.find(g => g.id === goalId)?.name;
-    toast.success(`₹${addAmount} added to ${goalName}!`);
-    
-    setAddingAmountToGoal(null);
-    setAddAmount("");
+    setIsActionLoading(true);
+    try {
+      let updatedGoalData;
+      if (typeof goalId === 'string') {
+        updatedGoalData = await goalService.addProgress(goalId, parseFloat(addAmount));
+      } else {
+        // Fallback for UI if it's purely local
+        updatedGoalData = goals.find(g => g.id === goalId);
+        if (updatedGoalData) {
+          updatedGoalData.currentAmount += parseFloat(addAmount);
+          if (updatedGoalData.currentAmount >= updatedGoalData.targetAmount) {
+             updatedGoalData.completed = true;
+          }
+        }
+      }
+
+      if (updatedGoalData) {
+        const mappedUpdated = { ...updatedGoalData, name: updatedGoalData.title || goals.find(g => g.id === goalId)?.name };
+        setGoals(goals.map(g => g.id === goalId ? mappedUpdated : g));
+        
+        const goalName = mappedUpdated.name;
+        toast.success(`₹${addAmount} added to ${goalName}!`);
+        if (mappedUpdated.completed && !goals.find(g => g.id === goalId)?.completed) {
+           toast.success(`Congratulations! You reached your goal: ${goalName}`);
+        }
+      }
+      
+      setAddingAmountToGoal(null);
+      setAddAmount("");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add progress");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const editGoal = (goal: any) => {
@@ -501,25 +620,41 @@ const Dashboard = () => {
     setShowEditGoal(true);
   };
 
-  const handleEditGoal = () => {
+  const handleEditGoal = async () => {
     if (!editingGoal.name || !editingGoal.targetAmount || !editingGoal.deadline) {
       toast.error("Please fill in all goal fields");
       return;
     }
 
-    const updatedGoal = {
-      ...editingGoal,
-      targetAmount: parseFloat(editingGoal.targetAmount),
-      currentAmount: parseFloat(editingGoal.currentAmount) || 0,
-    };
+    setIsActionLoading(true);
+    try {
+      let updatedGoalData;
+      if (typeof editingGoal.id === 'string') {
+        updatedGoalData = await goalService.updateGoal(editingGoal.id, {
+          title: editingGoal.name,
+          targetAmount: parseFloat(editingGoal.targetAmount),
+          deadline: new Date(editingGoal.deadline).toISOString()
+        });
+      } else {
+         updatedGoalData = {
+           ...editingGoal,
+           targetAmount: parseFloat(editingGoal.targetAmount),
+           currentAmount: parseFloat(editingGoal.currentAmount) || 0,
+         };
+      }
 
-    const updatedGoals = goals.map(g => g.id === editingGoal.id ? updatedGoal : g);
-    setGoals(updatedGoals);
-    localStorage.setItem(`goals_${user.id}`, JSON.stringify(updatedGoals));
-    
-    setEditingGoal(null);
-    setShowEditGoal(false);
-    toast.success("Goal updated successfully!");
+      const mappedUpdated = { ...updatedGoalData, name: updatedGoalData.title || editingGoal.name };
+      setGoals(goals.map(g => g.id === editingGoal.id ? mappedUpdated : g));
+      
+      setEditingGoal(null);
+      setShowEditGoal(false);
+      toast.success("Goal updated successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update goal");
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const deleteRecurring = (recurringId: number) => {
@@ -647,12 +782,12 @@ const Dashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("spendwise_current_user");
+    logout();
     toast.success("Logged out successfully");
     navigate("/");
   };
 
-  const handleAddTransaction = (e: React.FormEvent) => {
+  const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!description || !amount || !category) {
@@ -660,36 +795,77 @@ const Dashboard = () => {
       return;
     }
 
-    const newTransaction: Transaction = {
-      id: Date.now(),
-      description,
-      amount: parseFloat(amount),
-      category,
-      type,
-      date
-    };
+    try {
+      const newTransaction = await transactionService.createTransaction({
+        description,
+        amount: parseFloat(amount),
+        category,
+        type,
+        date
+      });
 
-    const updatedTransactions = [newTransaction, ...transactions];
-    setTransactions(updatedTransactions);
-    localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
-    generateBudgetSuggestions(updatedTransactions);
-    
-    toast.success("Transaction added!");
-    setDescription("");
-    setAmount("");
-    setCategory("");
+      const updatedTransactions = [newTransaction, ...transactions];
+      setTransactions(updatedTransactions);
+      generateBudgetSuggestions(updatedTransactions);
+      
+      toast.success("Transaction added!");
+      setDescription("");
+      setAmount("");
+      setCategory("");
+    } catch (error) {
+      console.error("Failed to add transaction", error);
+      toast.error("Failed to add transaction");
+    }
   };
 
-  const handleDeleteTransaction = (id: number) => {
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-    localStorage.setItem(`transactions_${user.id}`, JSON.stringify(updatedTransactions));
-    toast.success("Transaction deleted");
+  const handleDeleteTransaction = async (id: string | number) => {
+    try {
+      if (typeof id === 'string') {
+        await transactionService.deleteTransaction(id);
+      }
+      const updatedTransactions = transactions.filter(t => t.id !== id);
+      setTransactions(updatedTransactions);
+      toast.success("Transaction deleted");
+    } catch (error) {
+      console.error("Failed to delete transaction", error);
+      toast.error("Failed to delete transaction");
+    }
   };
 
   const totalIncome = transactions.filter(t => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
   const balance = totalIncome - totalExpense;
+
+  // Summaries Calculations
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const currentDateStr = now.toISOString().split('T')[0];
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const calculateSummary = (filterFn: (t: Transaction) => boolean) => {
+    const filtered = transactions.filter(filterFn);
+    const income = filtered.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const expense = filtered.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    return {
+      income,
+      expense,
+      savings: income - expense,
+      count: filtered.length
+    };
+  };
+
+  const dailySummary = calculateSummary(t => t.date.startsWith(currentDateStr));
+  
+  const monthlySummary = calculateSummary(t => {
+    const d = new Date(t.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const weeklySummary = calculateSummary(t => {
+    const d = new Date(t.date);
+    return d >= oneWeekAgo && d <= now;
+  });
 
   // Enhanced analytics calculations
   const getDailyAverage = () => {
@@ -1263,40 +1439,49 @@ const Dashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* File Upload */}
+              {/* Summaries */}
               <Card className="glass neon-border animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">
-                    <Upload className="w-5 h-5 text-primary" />
-                    Upload Bank Statement
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                    Summaries
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                    <FileText className="w-12 h-12 text-foreground/50 mx-auto mb-4" />
-                    <p className="text-foreground/70 mb-4">Upload CSV, TXT, or Excel files</p>
-                    <Input
-                      type="file"
-                      accept=".csv,.txt,.xlsx,.xls"
-                      onChange={handleFileUpload}
-                      className="bg-input/50 border-border/50 focus:border-primary"
-                    />
-                  </div>
-                  {selectedFile && (
-                    <div className="glass p-3 rounded-lg">
-                      <p className="text-sm text-foreground/80">
-                        Selected: {selectedFile.name}
-                      </p>
-                    </div>
-                  )}
-                  <div className="text-xs text-foreground/60">
-                    <p>Supported formats:</p>
-                    <div className="font-mono bg-accent/50 p-2 rounded mt-1 text-xs">
-                      <p>CSV: date,description,amount,category,type</p>
-                      <p>CSV: date,description,amount</p>
-                      <p>TXT: description amount</p>
-                    </div>
-                  </div>
+                <CardContent>
+                  <Tabs defaultValue="monthly" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 mb-6 bg-background/50 border border-border/50">
+                      <TabsTrigger value="monthly">This Month</TabsTrigger>
+                      <TabsTrigger value="weekly">This Week</TabsTrigger>
+                      <TabsTrigger value="daily">Today</TabsTrigger>
+                    </TabsList>
+                    
+                    {[
+                      { id: 'monthly', data: monthlySummary },
+                      { id: 'weekly', data: weeklySummary },
+                      { id: 'daily', data: dailySummary }
+                    ].map(summary => (
+                      <TabsContent key={summary.id} value={summary.id} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="glass p-4 rounded-xl text-center border border-border/30 hover:border-green-500/50 transition-colors">
+                            <p className="text-sm text-foreground/70 mb-2">Income</p>
+                            <p className="text-2xl font-bold text-green-400">₹{summary.data.income.toLocaleString()}</p>
+                          </div>
+                          <div className="glass p-4 rounded-xl text-center border border-border/30 hover:border-red-500/50 transition-colors">
+                            <p className="text-sm text-foreground/70 mb-2">Expense</p>
+                            <p className="text-2xl font-bold text-red-400">₹{summary.data.expense.toLocaleString()}</p>
+                          </div>
+                          <div className="glass p-4 rounded-xl text-center border border-border/30 hover:border-primary/50 transition-colors">
+                            <p className="text-sm text-foreground/70 mb-2">Savings</p>
+                            <p className="text-2xl font-bold text-primary">₹{summary.data.savings.toLocaleString()}</p>
+                          </div>
+                          <div className="glass p-4 rounded-xl text-center border border-border/30 hover:border-secondary/50 transition-colors">
+                            <p className="text-sm text-foreground/70 mb-2">Transactions</p>
+                            <p className="text-2xl font-bold text-foreground">{summary.data.count}</p>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
                 </CardContent>
               </Card>
             </div>
@@ -1583,19 +1768,31 @@ const Dashboard = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium text-foreground">Emergency Fund</span>
                         <span className="text-sm font-bold text-tertiary">
-                          {goals.length > 0 ? Math.round((goals.find(g => g.name.toLowerCase().includes('emergency'))?.currentAmount || 0) / (goals.find(g => g.name.toLowerCase().includes('emergency'))?.targetAmount || 1) * 100) : 0}%
+                          {(() => {
+                            const emGoal = goals.find(g => g.name?.toLowerCase().includes('emergency'));
+                            if (!emGoal) return 0;
+                            return Math.round((emGoal.currentAmount || 0) / (emGoal.targetAmount || 1) * 100);
+                          })()}%
                         </span>
                       </div>
                       <div className="w-full bg-accent/20 rounded-full h-2">
                         <div 
                           className="bg-gradient-to-r from-primary to-tertiary h-2 rounded-full transition-all duration-500"
                           style={{ 
-                            width: `${goals.length > 0 ? Math.min((goals.find(g => g.name.toLowerCase().includes('emergency'))?.currentAmount || 0) / (goals.find(g => g.name.toLowerCase().includes('emergency'))?.targetAmount || 1) * 100, 100) : 0}%` 
+                            width: `${(() => {
+                              const emGoal = goals.find(g => g.name?.toLowerCase().includes('emergency'));
+                              if (!emGoal) return 0;
+                              return Math.min((emGoal.currentAmount || 0) / (emGoal.targetAmount || 1) * 100, 100);
+                            })()}%` 
                           }}
                         ></div>
                       </div>
                       <p className="text-xs text-foreground/60">
-                        {goals.length > 0 ? `₹${(goals.find(g => g.name.toLowerCase().includes('emergency'))?.currentAmount || 0).toFixed(0)} saved` : "Create an emergency fund goal"}
+                        {(() => {
+                          const emGoal = goals.find(g => g.name?.toLowerCase().includes('emergency'));
+                          if (!emGoal) return "Create an emergency fund goal";
+                          return `₹${(emGoal.currentAmount || 0).toFixed(0)} saved`;
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -1682,12 +1879,7 @@ const Dashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => {
-                                      const updatedInvestments = investments.filter(i => i.id !== investment.id);
-                                      setInvestments(updatedInvestments);
-                                      localStorage.setItem(`investments_${user.id}`, JSON.stringify(updatedInvestments));
-                                      toast.success("Investment removed successfully!");
-                                    }}
+                                    onClick={() => handleDeleteInvestment(investment.id)}
                                     className="text-red-500 hover:text-red-700 p-1"
                                   >
                                     <Trash2 className="w-3 h-3" />
@@ -1832,43 +2024,51 @@ const Dashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="glass p-4 rounded-lg border border-primary/20">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-primary/20 text-primary">
-                          <TrendingUp className="w-4 h-4" />
+                  {isInsightsLoading ? (
+                    <div className="space-y-3">
+                      <div className="glass p-4 rounded-lg border border-primary/20 animate-pulse h-20"></div>
+                      <div className="glass p-4 rounded-lg border border-secondary/20 animate-pulse h-20"></div>
+                      <div className="glass p-4 rounded-lg border border-tertiary/20 animate-pulse h-20"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="glass p-4 rounded-lg border border-primary/20">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-primary/20 text-primary">
+                            <TrendingUp className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-1">Investment Suggestion</h4>
+                            <p className="text-sm text-foreground/70">{aiInsights?.investmentSuggestion || "Not enough data to provide suggestions yet."}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-semibold mb-1">Investment Suggestion</h4>
-                          <p className="text-sm text-foreground/70">Invest ₹5,000 in mutual funds this month for long-term growth.</p>
+                      </div>
+                      
+                      <div className="glass p-4 rounded-lg border border-secondary/20">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-secondary/20 text-secondary">
+                            <Target className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-1">Budget Optimization</h4>
+                            <p className="text-sm text-foreground/70">{aiInsights?.budgetOptimization || "Not enough data to optimize your budget yet."}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="glass p-4 rounded-lg border border-tertiary/20">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-lg bg-tertiary/20 text-tertiary">
+                            <Wallet className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold mb-1">Savings Goal</h4>
+                            <p className="text-sm text-foreground/70">{aiInsights?.savingsGoal || "Not enough data to track savings goals yet."}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="glass p-4 rounded-lg border border-secondary/20">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-secondary/20 text-secondary">
-                          <Target className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-1">Budget Optimization</h4>
-                          <p className="text-sm text-foreground/70">Shift ₹1,000 from dining to emergency fund to improve financial stability.</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="glass p-4 rounded-lg border border-tertiary/20">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-tertiary/20 text-tertiary">
-                          <Wallet className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-1">Savings Goal</h4>
-                          <p className="text-sm text-foreground/70">You're on track to save ₹15,000 this month. Great progress!</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1881,81 +2081,79 @@ const Dashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Monthly Projection */}
-                  <div className="flex items-center justify-between p-4 glass rounded-lg">
-                    <div>
-                      <p className="text-sm text-foreground/70">Projected Month-End Spending</p>
-                      <p className="text-xl font-bold text-secondary">
-                        ₹{Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()))}
-                      </p>
-                      <p className="text-xs text-foreground/60 mt-1">
-                        Based on current daily average: ₹{dailyAverage.toFixed(0)}
-                      </p>
+                  {isInsightsLoading ? (
+                    <div className="space-y-4">
+                      <div className="h-24 glass rounded-lg animate-pulse"></div>
+                      <div className="h-16 glass rounded-lg animate-pulse"></div>
+                      <div className="h-20 glass rounded-lg animate-pulse"></div>
                     </div>
-                    <TrendingDown className="w-8 h-8 text-secondary" />
-                  </div>
-
-                  {/* Budget Comparison */}
-                  {monthlyBudget && (
-                    <div className="p-4 glass rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium">Budget vs Projection</span>
-                        <span className={`text-sm font-bold ${
-                          Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())) > parseFloat(monthlyBudget) 
-                            ? 'text-red-500' : 'text-tertiary'
-                        }`}>
-                          {Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())) > parseFloat(monthlyBudget) 
-                            ? `+₹${Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) - parseFloat(monthlyBudget))} over` 
-                            : `₹${Math.round(parseFloat(monthlyBudget) - dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()))} under`
-                          }
-                        </span>
-                      </div>
-                      <div className="w-full bg-accent/20 rounded-full h-3">
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-300 ${
-                            Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())) > parseFloat(monthlyBudget)
-                              ? 'bg-gradient-to-r from-red-500 to-orange-500' 
-                              : 'bg-gradient-to-r from-tertiary to-primary'
-                          }`}
-                          style={{ 
-                            width: `${Math.min((dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) / parseFloat(monthlyBudget)) * 100, 100)}%` 
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Budget Runaway */}
-                  {monthlyBudget && dailyAverage > 0 && (
-                    <div className="p-4 glass rounded-lg">
-                      <div className="flex items-center justify-between">
+                  ) : (
+                    <>
+                      {/* Monthly Projection */}
+                      <div className="flex items-center justify-between p-4 glass rounded-lg">
                         <div>
-                          <p className="text-sm text-foreground/70">Budget Runaway</p>
-                          <p className="text-lg font-bold text-orange-500">
-                            {Math.round(parseFloat(monthlyBudget) / dailyAverage)} days
+                          <p className="text-sm text-foreground/70">Projected Month-End Spending</p>
+                          <p className="text-xl font-bold text-secondary">
+                            ₹{aiInsights?.projectedMonthEndSpending || 0}
                           </p>
                           <p className="text-xs text-foreground/60 mt-1">
-                            Days until budget is exhausted
+                            Calculated dynamically via AI algorithms
                           </p>
                         </div>
-                        <AlertTriangle className="w-8 h-8 text-orange-500" />
+                        <TrendingDown className="w-8 h-8 text-secondary" />
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Cash Flow Alert */}
-                  {(monthlyBudget && Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())) > parseFloat(monthlyBudget)) && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-semibold text-red-500">Budget Overrun Alert</p>
-                          <p className="text-xs text-foreground/70 mt-1">
-                            Your projected spending exceeds your monthly budget by ₹{Math.round(dailyAverage * (new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) - parseFloat(monthlyBudget))}. Consider reducing daily expenses.
+
+                      {/* Budget Comparison */}
+                      {monthlyBudget && (
+                        <div className="p-4 glass rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium">Budget vs Projection</span>
+                            <span className={`text-sm font-bold ${
+                              (aiInsights?.projectedMonthEndSpending || 0) > parseFloat(monthlyBudget) 
+                                ? 'text-red-500' : 'text-tertiary'
+                            }`}>
+                              {(aiInsights?.projectedMonthEndSpending || 0) > parseFloat(monthlyBudget) 
+                                ? `+₹${Math.round((aiInsights?.projectedMonthEndSpending || 0) - parseFloat(monthlyBudget))} over` 
+                                : `₹${Math.round(parseFloat(monthlyBudget) - (aiInsights?.projectedMonthEndSpending || 0))} under`
+                              }
+                            </span>
+                          </div>
+                          <div className="w-full bg-accent/20 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-500 ${(aiInsights?.projectedMonthEndSpending || 0) > parseFloat(monthlyBudget) ? 'bg-red-500' : 'bg-gradient-to-r from-primary to-secondary'}`}
+                              style={{ 
+                                width: `${Math.min(((aiInsights?.projectedMonthEndSpending || 0) / parseFloat(monthlyBudget)) * 100, 100)}%` 
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Insights */}
+                      <div className="flex gap-4">
+                        <div className="flex-1 p-4 glass rounded-lg border border-accent/20">
+                          <p className="text-sm text-foreground/70 mb-1">Budget Runaway</p>
+                          <p className="text-lg font-bold text-tertiary flex items-center gap-2">
+                            {aiInsights?.budgetRunawayDays || 0} days
+                            {(aiInsights?.budgetRunawayDays || 0) < 10 && <AlertTriangle className="w-4 h-4 text-secondary" />}
                           </p>
+                          <p className="text-xs text-foreground/60 mt-1">Days until budget is exhausted</p>
                         </div>
                       </div>
-                    </div>
+
+                      {/* Alerts */}
+                      {aiInsights?.budgetOverrunAlert && (
+                        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                          <div>
+                            <h4 className="text-sm font-semibold text-red-500 mb-1">AI Budget Alert</h4>
+                            <p className="text-xs text-red-500/80">
+                              {aiInsights.budgetOverrunAlert}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -2261,23 +2459,6 @@ const Dashboard = () => {
                   onChange={(e) => {
                     const value = Math.max(0, parseFloat(e.target.value) || 0);
                     setNewGoal({...newGoal, targetAmount: value.toString()});
-                  }}
-                  className="bg-input/50 border-border/50 focus:border-primary"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="goal-current">Current Amount (₹)</Label>
-                <Input
-                  id="goal-current"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  value={newGoal.currentAmount}
-                  onChange={(e) => {
-                    const value = Math.max(0, parseFloat(e.target.value) || 0);
-                    setNewGoal({...newGoal, currentAmount: value.toString()});
                   }}
                   className="bg-input/50 border-border/50 focus:border-primary"
                 />
@@ -2629,32 +2810,48 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* AI Chatbot Modal */}
+      {/* AI Chatbot Side Panel */}
       {showChatbot && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md glass neon-border animate-scale-in">
-            <CardHeader>
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+          <Card className="w-full max-w-sm sm:max-w-md h-full rounded-none rounded-l-2xl glass neon-border flex flex-col border-r-0 border-y-0 animate-in slide-in-from-right duration-300">
+            <CardHeader className="border-b border-border/30 pb-4">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Bot className="w-5 h-5 text-primary" />
                   AI Financial Assistant
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowChatbot(false)}
-                  className="text-foreground/70 hover:text-foreground"
-                >
-                  ✕
-                </Button>
+                <div className="flex items-center gap-1">
+                  {chatMessages.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setChatMessages([])}
+                      className="text-foreground/50 hover:text-red-400 h-8 w-8 p-0 rounded-full"
+                      title="Clear Chat"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowChatbot(false)}
+                    className="text-foreground/70 hover:text-foreground h-8 w-8 p-0 rounded-full"
+                  >
+                    ✕
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="h-64 overflow-y-auto space-y-3 p-2">
+            <CardContent className="flex-1 overflow-hidden flex flex-col p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-2">
                 {chatMessages.length === 0 ? (
-                  <div className="text-center text-foreground/60 py-8">
-                    <Bot className="w-12 h-12 mx-auto mb-2 text-primary/50" />
-                    <p className="text-sm">Ask me anything about your finances!</p>
+                  <div className="text-center text-foreground/60 py-12 mt-10 flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Bot className="w-8 h-8 text-primary" />
+                    </div>
+                    <p className="text-sm font-medium">Ask me anything about your finances!</p>
+                    <p className="text-xs text-foreground/50 mt-2">I can analyze your spending and suggest budgets.</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (
@@ -2663,31 +2860,39 @@ const Dashboard = () => {
                       className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] p-3 rounded-lg text-sm ${
+                        className={`max-w-[85%] p-3 rounded-lg text-sm ${
                           msg.type === 'user'
-                            ? 'bg-primary text-white'
-                            : 'glass border border-border/50'
+                            ? 'bg-primary text-white rounded-br-none shadow-md'
+                            : 'glass border border-border/50 rounded-bl-none shadow-sm'
                         }`}
                       >
-                        <p>{msg.message}</p>
-                        <p className="text-xs opacity-70 mt-1">{msg.time}</p>
+                        {msg.type === 'ai' ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown>{msg.message}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p>{msg.message}</p>
+                        )}
+                        <p className={`text-[10px] mt-1.5 text-right ${msg.type === 'user' ? 'opacity-80' : 'opacity-50'}`}>{msg.time}</p>
                       </div>
                     </div>
                   ))
                 )}
               </div>
               
-              <form onSubmit={handleChatSubmit} className="flex gap-2">
-                <Input
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask about budgeting, saving, investing..."
-                  className="bg-input/50 border-border/50 focus:border-primary"
-                />
-                <Button type="submit" size="sm" className="bg-gradient-to-r from-primary to-secondary">
-                  Send
-                </Button>
-              </form>
+              <div className="pt-3 border-t border-border/30 mt-auto">
+                <form onSubmit={handleChatSubmit} className="flex gap-2">
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type your message here..."
+                    className="bg-input/50 border-border/50 focus:border-primary flex-1"
+                  />
+                  <Button type="submit" size="sm" className="bg-gradient-to-r from-primary to-secondary px-4 shadow-md">
+                    Send
+                  </Button>
+                </form>
+              </div>
             </CardContent>
           </Card>
         </div>

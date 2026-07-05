@@ -5,17 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login, register, isLoading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password || (!isLogin && !name)) {
@@ -23,33 +25,18 @@ const Login = () => {
       return;
     }
 
-    if (isLogin) {
-      // Login logic
-      const users = JSON.parse(localStorage.getItem("spendwise_users") || "[]");
-      const user = users.find((u: any) => u.email === email && u.password === password);
-      
-      if (user) {
-        localStorage.setItem("spendwise_current_user", JSON.stringify(user));
+    try {
+      if (isLogin) {
+        await login(email, password);
         toast.success("Welcome back!");
         navigate("/dashboard");
       } else {
-        toast.error("Invalid credentials");
+        await register(name, email, password);
+        toast.success("Account created successfully!");
+        navigate("/dashboard");
       }
-    } else {
-      // Signup logic
-      const users = JSON.parse(localStorage.getItem("spendwise_users") || "[]");
-      
-      if (users.find((u: any) => u.email === email)) {
-        toast.error("Email already exists");
-        return;
-      }
-      
-      const newUser = { name, email, password, id: Date.now() };
-      users.push(newUser);
-      localStorage.setItem("spendwise_users", JSON.stringify(users));
-      localStorage.setItem("spendwise_current_user", JSON.stringify(newUser));
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Authentication failed");
     }
   };
 
@@ -123,9 +110,11 @@ const Login = () => {
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full bg-gradient-to-r from-primary via-secondary to-tertiary hover:opacity-90 transition-all shadow-[var(--shadow-neon-blue)] hover:shadow-[var(--shadow-glow)]"
                 size="lg"
               >
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 {isLogin ? "Sign In" : "Create Account"}
               </Button>
             </form>
