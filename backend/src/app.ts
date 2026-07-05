@@ -13,8 +13,21 @@ const app: Application = express();
 
 // Middleware
 app.use(helmet());
+const allowedOrigins = ['http://localhost:8081'];
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: 'http://localhost:8081',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(null, false); // Fail silently instead of crashing
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
